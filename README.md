@@ -57,7 +57,7 @@ The example script [`main.py`](main.py) demonstrates two ways to compose Tessera
    $ cd <myrepo>
    ```
 
-2. Set up virtual environment (if not done already)
+2. Set up virtual environment (if not done already). `uv` or `conda` can also be used.
    ```bash
    $ python3 -m venv .venv
    $ source .venv/bin/activate

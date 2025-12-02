@@ -1,6 +1,6 @@
 # Tesseract Hackathon Template
 
-A ready-to-use template for building projects with [tesseract-core](https://github.com/pasteurlabs/tesseract-core) and [tesseract-jax](https://github.com/pasteurlabs/tesseract-jax), featuring two interacting tesseracts that demonstrate vector scaling and similarity computation. Can be used as a starting point for participants in the [Tesseract Hackathon](link TODO).
+A ready-to-use template for building projects with [tesseract-core](https://github.com/pasteurlabs/tesseract-core) and [tesseract-jax](https://github.com/pasteurlabs/tesseract-jax), featuring two interacting tesseracts that demonstrate vector scaling and similarity computation. Can be used as a starting point for participants of the [Tesseract Hackathon](link TODO).
 
 [!NOTE]
 Using this template is *not* required to participate in the Hackathon. You may use any tools at your disposal, including [Tesseract Core](https://github.com/pasteurlabs/tesseract-core), [Tesseract-JAX](https://github.com/pasteurlabs/tesseract-jax), and [Tesseract-Streamlit](https://github.com/pasteurlabs/tesseract-streamlit) --- or composing Tesseracts via `docker run` calls in a glorified shell script. Your imagination is the limit!
@@ -17,7 +17,8 @@ This template shows how to:
 **1. scaler**
 - Scales input vectors by a given factor
 
-**2. dotproduct**
+**2. dotproduct_jax**
+- Created based on Tesseract's JAX recipe
 - Computes dot product between two vectors
 - Calculates cosine similarity
 
@@ -32,10 +33,6 @@ This template shows how to:
 ### Installation
 
 1. **Clone or use this template**
-   ```bash
-   git clone <your-repo-url>
-   cd tesseract-hackathon-template
-   ```
 
 2. **Set up environment**
    ```bash
@@ -59,19 +56,16 @@ This template shows how to:
 Running `python main.py` demonstrates two paths:
 
 **Path 1: Calling tesseracts separately**
-- Load each tesseract
-- Call scaler twice (for two vectors)
-- Call dotproduct once (on scaled vectors)
+- Call tesseracts via Tesseract Core SDK
 
 **Path 2: Composing tesseracts together**
-- Wrap tesseract calls in a single jax function
-- Create a reusable pipeline
-- Get the same result with cleaner code
+- Wrap tesseract calls in a single jax function using Tesseract-JAX
+- Create a clean reusable pipeline
 
 ## Resources
 
-- [Tesseract-JAX Documentation](https://github.com/pasteurlabs/tesseract-jax)
 - [Tesseract-Core Documentation](https://github.com/pasteurlabs/tesseract-core)
+- [Tesseract-JAX Documentation](https://github.com/pasteurlabs/tesseract-jax)
 - [JAX Documentation](https://jax.readthedocs.io/)
 
 ## License

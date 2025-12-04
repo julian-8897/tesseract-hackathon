@@ -57,7 +57,7 @@ The example script [`main.py`](main.py) demonstrates two ways to compose Tessera
    $ cd <myrepo>
    ```
 
-2. Set up virtual environment (if not done already)
+2. Set up virtual environment (if not done already). `uv` or `conda` can also be used.
    ```bash
    $ python3 -m venv .venv
    $ source .venv/bin/activate
@@ -91,7 +91,7 @@ Some pointers to get you started:
 3. **Deploy Tesseracts anywhere**.
    - Since built Tesseracts are just Docker images, you can [deploy them virtually anywhere](https://docs.pasteurlabs.ai/projects/tesseract-core/latest/content/creating-tesseracts/deploy.html).
    - This includes [HPC clusters via SLURM](https://si-tesseract.discourse.group/t/deploying-and-interacting-with-tesseracts-on-hpc-clusters-using-tesseract-runtime-serve/104).
-   - Have a look at [Tesseract Streamlit](https://github.com/pasteurlabs/tesseract-streamlit), which supports turning Tesseracts into web apps.
+   - Have a look at [Tesseract Streamlit](https://github.com/pasteurlabs/tesseract-streamlit) that can turn Tesseracts into web apps.
    - Show us how and where you run Tesseracts over the local network, on clusters, or in the cloud!
 4. **Happy Hacking!** 🚀
    - Don't let these pointers constrain you. We're looking for creative solutions, so thinking out of the box is always appreciated.

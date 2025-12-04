@@ -30,6 +30,7 @@ from tesseract_core.runtime.tree_transforms import filter_func, flatten_with_pat
 
 class InputSchema(BaseModel):
     """Input schema for the dot product tesseract"""
+
     vector_a: Differentiable[Array[(None,), Float32]] = Field("An arbitrary vector")
     vector_b: Differentiable[Array[(None,), Float32]] = Field("An arbitrary vector")
 
@@ -45,6 +46,7 @@ class InputSchema(BaseModel):
 
 class OutputSchema(BaseModel):
     """Output schema for the dot product tesseract"""
+
     dot_product: Differentiable[Float32]
     cosine_similarity: Differentiable[Float32]
 
@@ -68,17 +70,14 @@ def apply_jit(inputs: dict) -> dict:
     # Compute magnitudes for cosine similarity
     # Add small epsilon for numerical stability
     eps = 1e-8
-    magnitude_a = jnp.sqrt(jnp.sum(vector_a ** 2) + eps)
-    magnitude_b = jnp.sqrt(jnp.sum(vector_b ** 2) + eps)
+    magnitude_a = jnp.sqrt(jnp.sum(vector_a**2) + eps)
+    magnitude_b = jnp.sqrt(jnp.sum(vector_b**2) + eps)
 
     # Compute cosine similarity
     cosine_sim = dot_prod / (magnitude_a * magnitude_b)
 
     # Create and return output
-    output = {
-        "dot_product": dot_prod,
-        "cosine_similarity": cosine_sim
-    }
+    output = {"dot_product": dot_prod, "cosine_similarity": cosine_sim}
 
     return output
 

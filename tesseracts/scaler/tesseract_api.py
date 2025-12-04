@@ -17,15 +17,6 @@ class InputSchema(BaseModel):
     )
     scale_factor: Float32 = Field(description="A scalar to scale the vector by", default=1.0)
 
-    @model_validator(mode="after")
-    def validate_shape_inputs(self) -> Self:
-        if len(self.vector.shape) != 1:
-            raise ValueError(
-                f"Vector must be 1-dimensional. "
-                f"Got {self.vector.shape} instead."
-            )
-        return self
-
 
 class OutputSchema(BaseModel):
     """Output schema for the scaler tesseract"""

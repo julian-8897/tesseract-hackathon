@@ -1,0 +1,13 @@
+[project]
+name = "tesseract-hackathon"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "equinox>=0.13.2",
+    "jax>=0.8.2",
+    "pydantic>=2.12.5",
+    "tesseract-core>=1.2.0",
+    "tesseract-jax>=0.2.3",
+]

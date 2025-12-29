@@ -1,0 +1,9 @@
+# Tesseract configuration file for spatial_derivatives
+
+name: "spatial_derivatives"
+version: "0.1.0"
+description: "Computes 1D spatial derivatives using finite differences with 2nd/4th order accuracy"
+
+build_config:
+  # Platform to build the container for
+  target_platform: "native"

@@ -10,10 +10,9 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 from pydantic import BaseModel, Field, model_validator
-from typing_extensions import Self
-
 from tesseract_core.runtime import Array, Differentiable, Float32
 from tesseract_core.runtime.tree_transforms import filter_func, flatten_with_paths
+from typing_extensions import Self
 
 #
 # Schemata

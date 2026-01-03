@@ -2,11 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-PINN (Physics-Informed Neural Network) Tesseract - PyTorch Implementation
-
-Same architecture as pinn_jax but implemented in PyTorch.
-Demonstrates Tesseract's cross-framework autodiff capabilities.
-
+PINN (Physics-Informed Neural Network) Tesseract API.
+Same architecture as PINN JAX version but in PyTorch.
 Maps (x, t) → u(x, t) for solving PDEs.
 """
 
@@ -59,7 +56,6 @@ class PINNNet(nn.Module):
 
         torch.manual_seed(seed)
 
-        # Fourier feature matrices (helps with spectral bias)
         self.register_buffer("B_x", torch.randn(n_fourier_features) * 2.0)
         self.register_buffer("B_t", torch.randn(n_fourier_features) * 2.0)
 
@@ -93,11 +89,10 @@ class PINNNet(nn.Module):
             dim=-1,
         )  # (batch, input_dim)
 
-        # MLP forward pass
         h = features
         for layer in self.layers[:-1]:
             h = layer(h)
-            h = torch.tanh(h)  # tanh works well for PINNs
+            h = torch.tanh(h) 
 
         return self.layers[-1](h).squeeze(-1)
 
@@ -207,7 +202,7 @@ def vector_jacobian_product(
     """
     Compute VJP (backward pass) for Tesseract autodiff.
 
-    This enables jax.grad to flow through PyTorch!
+    Enables jax.grad to flow through PyTorch models.
     """
     x = np.array(inputs.x)
     t = np.array(inputs.t)

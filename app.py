@@ -1,10 +1,11 @@
 """
-Tesseract Inverse Problem Demo - Interactive Streamlit App
+Tesseract Inverse Problem Demo using Streamlit.
 
-Showcases cross-framework autodiff: JAX gradients flowing through PyTorch PINN!
 """
 
 import time
+from dataclasses import dataclass
+from typing import Dict
 
 import jax
 import jax.numpy as jnp
@@ -12,6 +13,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import optax
 import streamlit as st
+from tesseract_jax import apply_tesseract
 
 from inverse_problem import (
     Tesseract,
@@ -26,7 +28,6 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Custom CSS
 st.markdown(
     """
 <style>
@@ -39,6 +40,19 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
+
+@dataclass
+class GradientFlowMetrics:
+    """Track Tesseract gradient flow metrics."""
+
+    epoch: int
+    vjp_calls: int
+    apply_calls: int
+    visc_grad_norm: float
+    param_grad_norm: float
+    loss_value: float
+    shapes: Dict[str, tuple]
 
 
 def initialize_session_state():
@@ -55,6 +69,10 @@ def initialize_session_state():
         st.session_state.params_flat = {}
     if "epoch_times" not in st.session_state:
         st.session_state.epoch_times = {}
+    if "gradient_metrics" not in st.session_state:
+        st.session_state.gradient_metrics = []
+    if "show_gradient_inspector" not in st.session_state:
+        st.session_state.show_gradient_inspector = False
 
 
 def generate_solution_grid(viscosity, params_flat, pinn, nx=100, nt=50):
@@ -67,19 +85,253 @@ def generate_solution_grid(viscosity, params_flat, pinn, nx=100, nt=50):
     x_flat = jnp.array(X.flatten())
     t_flat = jnp.array(T.flatten())
 
-    # Evaluate PINN
-    from tesseract_jax import apply_tesseract
-
     result = apply_tesseract(
         pinn, {"x": x_flat, "t": t_flat, "params_flat": params_flat}
     )
+    # PINN solution evaluation
     u_pred = np.array(result["u_pred"]).reshape(nt, nx)
 
-    # Also compute analytical solution for comparison
+    # Analytical Solution
     decay = np.exp(-viscosity * (2 * np.pi) ** 2 * T)
     u_analytical = np.sin(2 * np.pi * X) * decay
 
     return X, T, u_pred, u_analytical
+
+
+def render_gradient_flow_inspector(backend, gradient_metrics):
+    """Render the gradient flow inspector UI."""
+    st.markdown("---")
+    with st.expander(
+        "🔍 **Gradient Flow Inspector** (Tesseract Internals)", expanded=True
+    ):
+        st.markdown(f"""
+        ### Cross-Framework Autodiff Pipeline
+
+        This shows how **Tesseract enables JAX gradients to flow through {backend.upper()}**:
+        """)
+
+        # Flow diagram
+        if backend == "pytorch":
+            st.markdown("""
+            ```
+            JAX Optimizer (optax)
+                    ↓
+            jax.grad(compute_loss)
+                    ↓
+            Tesseract VJP Endpoint  ← Cross-framework boundary!
+                    ↓
+            PyTorch Autograd (torch.autograd.grad)
+                    ↓
+            PyTorch PINN forward pass
+                    ↓
+            Gradients flow back through VJP
+                    ↓
+            JAX receives gradients  ← Back to JAX!
+            ```
+            """)
+        else:
+            st.markdown("""
+            ```
+            JAX Optimizer (optax)
+                    ↓
+            jax.grad(compute_loss)
+                    ↓
+            Tesseract Apply Endpoint
+                    ↓
+            JAX Autograd (jax.grad)
+                    ↓
+            JAX PINN forward pass
+                    ↓
+            Gradients computed natively
+            ```
+            """)
+
+        if not gradient_metrics:
+            st.info("Run training to see gradient flow metrics...")
+            return
+
+        # Metrics tabs
+        tab1, tab2, tab3 = st.tabs(
+            ["📊 Call Statistics", "📈 Gradient Norms", "🔬 Tensor Shapes"]
+        )
+
+        with tab1:
+            st.subheader("Tesseract API Call Count")
+
+            col1, col2, col3 = st.columns(3)
+            latest = gradient_metrics[-1]
+
+            col1.metric(
+                "apply() calls per epoch",
+                latest.apply_calls,
+                help="Forward pass evaluations",
+            )
+            col2.metric(
+                "VJP calls per epoch",
+                latest.vjp_calls,
+                help="Backward pass (gradient) evaluations",
+            )
+            col3.metric("Total AD operations", latest.apply_calls + latest.vjp_calls)
+
+            st.info(f"""
+            **Key Insight**: Each epoch requires:
+            - **{latest.apply_calls} forward passes** (apply): Evaluate u, u_x, u_t, u_xx at collocation points
+            - **{latest.vjp_calls} backward passes** (VJP): Compute ∂L/∂ν and ∂L/∂params
+
+            {"**Cross-framework magic**: VJP calls route through PyTorch!" if backend == "pytorch" else "**Native JAX**: All operations stay in JAX"}
+            """)
+
+        with tab2:
+            st.subheader("Gradient Magnitude Evolution")
+
+            epochs = [m.epoch for m in gradient_metrics]
+            visc_grads = [m.visc_grad_norm for m in gradient_metrics]
+            param_grads = [m.param_grad_norm for m in gradient_metrics]
+
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
+
+            # Viscosity gradient
+            ax1.semilogy(
+                epochs, visc_grads, "o-", color="#2ecc71", linewidth=2, markersize=4
+            )
+            ax1.set_xlabel("Epoch")
+            ax1.set_ylabel("||∂L/∂ν||")
+            ax1.set_title("Viscosity Gradient Norm")
+            ax1.grid(alpha=0.3)
+
+            # Parameter gradient
+            ax2.semilogy(
+                epochs, param_grads, "o-", color="#e74c3c", linewidth=2, markersize=4
+            )
+            ax2.set_xlabel("Epoch")
+            ax2.set_ylabel("||∂L/∂params||")
+            ax2.set_title("Network Parameter Gradient Norm")
+            ax2.grid(alpha=0.3)
+
+            plt.tight_layout()
+            st.pyplot(fig)
+            plt.close(fig)
+
+            col1, col2 = st.columns(2)
+            col1.metric("Latest ||∂L/∂ν||", f"{visc_grads[-1]:.2e}")
+            col2.metric("Latest ||∂L/∂params||", f"{param_grads[-1]:.2e}")
+
+            st.info("""
+            **Gradient norms** show the sensitivity of loss to parameters:
+            - High norm → steep loss landscape, large updates
+            - Decreasing norm → approaching optimum
+            - These are computed via Tesseract's VJP (Vector-Jacobian Product)
+            """)
+
+        with tab3:
+            st.subheader("Tensor Shapes Through Pipeline")
+
+            if latest.shapes:
+                st.json(latest.shapes)
+            else:
+                st.info("No shape information available")
+
+            st.markdown(f"""
+            **Data flow through Tesseract**:
+            - **Inputs**: x, t (collocation points), params_flat (network weights)
+            - **Outputs**: u_pred, u_x, u_t, u_xx (solution + derivatives)
+            - All computed via **{backend.upper()} autodiff**, exposed through Tesseract API
+            """)
+
+
+def compute_loss_instrumented(
+    viscosity,
+    params_flat,
+    x_obs,
+    t_obs,
+    u_obs,
+    x_col,
+    t_col,
+    x_ic,
+    t_bc,
+    pinn,
+    track_calls=False,
+    call_tracker=None,
+):
+    """Instrumented version of compute_loss that tracks Tesseract API calls."""
+    if track_calls and call_tracker is not None:
+        call_tracker["apply_calls"] = call_tracker.get("apply_calls", 0)
+
+    # Data Loss - Track this call
+    if track_calls and call_tracker is not None:
+        call_tracker["apply_calls"] += 1
+
+    result_obs = apply_tesseract(
+        pinn,
+        {
+            "x": x_obs,
+            "t": t_obs,
+            "params_flat": params_flat,
+        },
+    )
+    u_pred = result_obs["u_pred"]
+    data_loss = jnp.mean((u_pred - u_obs) ** 2)
+
+    # Physics Loss - Track this call
+    if track_calls and call_tracker is not None:
+        call_tracker["apply_calls"] += 1
+
+    result_col = apply_tesseract(
+        pinn, {"x": x_col, "t": t_col, "params_flat": params_flat}
+    )
+    u_col = result_col["u_pred"]
+    u_x = result_col["u_x"]
+    u_t = result_col["u_t"]
+    u_xx = result_col["u_xx"]
+    residual = u_t + u_col * u_x - viscosity * u_xx
+    physics_loss = jnp.mean(residual**2)
+
+    # IC Loss - Track this call
+    if track_calls and call_tracker is not None:
+        call_tracker["apply_calls"] += 1
+
+    t_ic = jnp.zeros_like(x_ic)
+    result_ic = apply_tesseract(
+        pinn,
+        {
+            "x": x_ic,
+            "t": t_ic,
+            "params_flat": params_flat,
+        },
+    )
+    u_ic = result_ic["u_pred"]
+    u_ic_true = jnp.sin(2 * jnp.pi * x_ic)
+    ic_loss = jnp.mean((u_ic - u_ic_true) ** 2)
+
+    # BC Loss - Track this call
+    if track_calls and call_tracker is not None:
+        call_tracker["apply_calls"] += 2  # Two apply calls for left/right
+
+    x_left = jnp.zeros_like(t_bc)
+    x_right = jnp.ones_like(t_bc)
+    result_left = apply_tesseract(
+        pinn,
+        {
+            "x": x_left,
+            "t": t_bc,
+            "params_flat": params_flat,
+        },
+    )
+    result_right = apply_tesseract(
+        pinn,
+        {
+            "x": x_right,
+            "t": t_bc,
+            "params_flat": params_flat,
+        },
+    )
+    u_left = result_left["u_pred"]
+    u_right = result_right["u_pred"]
+    bc_loss = jnp.mean((u_left - u_right) ** 2)
+
+    total_loss = data_loss + 0.1 * physics_loss + 0.5 * ic_loss + 0.5 * bc_loss
+
+    return total_loss
 
 
 def train_step(
@@ -98,21 +350,65 @@ def train_step(
     pinn,
     visc_optimizer,
     param_optimizer,
+    epoch=0,
+    track_gradients=False,
 ):
-    """Single training step."""
-    import jax
+    """Single training step with optional gradient flow tracking."""
+    call_tracker = {"apply_calls": 0, "vjp_calls": 0}
 
     # Define gradient functions
-    grad_visc = jax.grad(compute_loss, argnums=0)
-    grad_params = jax.grad(compute_loss, argnums=1)
+    if track_gradients:
+        grad_visc = jax.grad(
+            lambda v, p: compute_loss_instrumented(
+                v,
+                p,
+                x_obs,
+                t_obs,
+                u_obs,
+                x_col,
+                t_col,
+                x_ic,
+                t_bc,
+                pinn,
+                track_calls=True,
+                call_tracker=call_tracker,
+            ),
+            argnums=0,
+        )
 
-    # Compute gradients
-    v_grad = grad_visc(
-        viscosity, params_flat, x_obs, t_obs, u_obs, x_col, t_col, x_ic, t_bc, pinn
-    )
-    p_grad = grad_params(
-        viscosity, params_flat, x_obs, t_obs, u_obs, x_col, t_col, x_ic, t_bc, pinn
-    )
+        grad_params = jax.grad(
+            lambda v, p: compute_loss_instrumented(
+                v,
+                p,
+                x_obs,
+                t_obs,
+                u_obs,
+                x_col,
+                t_col,
+                x_ic,
+                t_bc,
+                pinn,
+                track_calls=True,
+                call_tracker=call_tracker,
+            ),
+            argnums=1,
+        )
+    else:
+        grad_visc = jax.grad(compute_loss, argnums=0)
+        grad_params = jax.grad(compute_loss, argnums=1)
+
+    # Compute gradients - This triggers VJP calls!
+    if track_gradients:
+        call_tracker["vjp_calls"] += 1
+    v_grad = grad_visc(viscosity, params_flat)
+
+    if track_gradients:
+        call_tracker["vjp_calls"] += 1
+    p_grad = grad_params(viscosity, params_flat)
+
+    # Compute gradient norms
+    visc_grad_norm = float(jnp.linalg.norm(v_grad))
+    param_grad_norm = float(jnp.linalg.norm(p_grad))
 
     # Update viscosity
     visc_updates, visc_opt_state = visc_optimizer.update(v_grad, visc_opt_state)
@@ -128,18 +424,30 @@ def train_step(
         viscosity, params_flat, x_obs, t_obs, u_obs, x_col, t_col, x_ic, t_bc, pinn
     )
 
-    return viscosity, params_flat, visc_opt_state, param_opt_state, float(loss)
+    metrics = None
+    if track_gradients:
+        metrics = GradientFlowMetrics(
+            epoch=epoch,
+            vjp_calls=call_tracker.get("vjp_calls", 0),
+            apply_calls=call_tracker.get("apply_calls", 0),
+            visc_grad_norm=visc_grad_norm,
+            param_grad_norm=param_grad_norm,
+            loss_value=float(loss),
+            shapes={"x": x_obs.shape, "t": t_obs.shape, "params": params_flat.shape},
+        )
+
+    return viscosity, params_flat, visc_opt_state, param_opt_state, float(loss), metrics
 
 
 def main():
     initialize_session_state()
 
-    st.title("🔮 Tesseract: Cross-Framework Autodiff Demo")
+    st.title("Tesseract: Cross-Framework Autodiff Demo")
     st.markdown(
         """
     ### Inverse Problem: Inferring Viscosity from Burgers Equation
     
-    This demo showcases **Tesseract's superpower**: enabling JAX gradients to flow through PyTorch models!
+    This demo showcases **Tesseract's capabilities**: enabling JAX gradients to flow through PyTorch models
     
     **Problem**: Given observed solution data, infer the unknown viscosity $\\nu$ in:
     $$\\frac{\\partial u}{\\partial t} + u \\frac{\\partial u}{\\partial x} = \\nu \\frac{\\partial^2 u}{\\partial x^2}$$
@@ -210,9 +518,20 @@ def main():
         help="Optimizer learning rate",
     )
 
+    # Add Gradient Flow Inspector toggle
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("🔬 Advanced Features")
+    show_gradient_inspector = st.sidebar.checkbox(
+        "Enable Gradient Flow Inspector",
+        value=False,
+        help="Track and visualize Tesseract's autodiff operations (slight performance overhead)",
+    )
+
     # Training button
     if st.sidebar.button("🚀 Train Model", type="primary"):
         st.session_state.training = True
+        # Reset gradient metrics when starting new training
+        st.session_state.gradient_metrics = []
 
     # Main content
     if st.session_state.training:
@@ -306,25 +625,40 @@ def main():
             for epoch in range(n_epochs):
                 start_time = time.time()
 
-                viscosity, params_flat, visc_opt_state, param_opt_state, loss = (
-                    train_step(
-                        backend,
-                        viscosity,
-                        params_flat,
-                        visc_opt_state,
-                        param_opt_state,
-                        x_obs,
-                        t_obs,
-                        u_obs,
-                        x_col,
-                        t_col,
-                        x_ic,
-                        t_bc,
-                        pinn,
-                        visc_optimizer,
-                        param_optimizer,
-                    )
+                # Track gradients every 5 epochs (or first 10) if inspector enabled
+                track_this_epoch = show_gradient_inspector and (
+                    epoch % 5 == 0 or epoch < 10
                 )
+
+                (
+                    viscosity,
+                    params_flat,
+                    visc_opt_state,
+                    param_opt_state,
+                    loss,
+                    metrics,
+                ) = train_step(
+                    backend,
+                    viscosity,
+                    params_flat,
+                    visc_opt_state,
+                    param_opt_state,
+                    x_obs,
+                    t_obs,
+                    u_obs,
+                    x_col,
+                    t_col,
+                    x_ic,
+                    t_bc,
+                    pinn,
+                    visc_optimizer,
+                    param_optimizer,
+                    epoch=epoch,
+                    track_gradients=track_this_epoch,
+                )
+
+                if metrics and show_gradient_inspector:
+                    st.session_state.gradient_metrics.append(metrics)
 
                 epoch_time = time.time() - start_time
                 time_history.append(epoch_time)
@@ -442,6 +776,12 @@ def main():
             st.session_state.loss_history[backend] = loss_history
             st.session_state.params_flat[backend] = params_flat
             st.session_state.epoch_times[backend] = time_history
+
+            # Gradient Flow Inspector (if enabled)
+            if show_gradient_inspector and st.session_state.gradient_metrics:
+                render_gradient_flow_inspector(
+                    backend, st.session_state.gradient_metrics
+                )
 
             # Key takeaway
             st.markdown("---")

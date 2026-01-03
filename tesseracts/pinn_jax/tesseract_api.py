@@ -4,6 +4,7 @@
 """
 PINN (Physics-Informed Neural Network) Tesseract API.
 Simple MLP implementation of PINN using JAX and Equinox with Fourier feature encoding.
+Maps (x, t) → u(x, t) for solving PDEs.
 """
 
 from typing import Any

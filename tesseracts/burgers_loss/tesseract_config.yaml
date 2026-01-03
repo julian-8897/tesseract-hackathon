@@ -1,9 +1,0 @@
-# Tesseract configuration file for burgers_loss
-
-name: "burgers_loss"
-version: "0.1.0"
-description: "Computes PDE residual and loss for 1D Burgers equation with physics-informed learning"
-
-build_config:
-  # Platform to build the container for
-  target_platform: "native"

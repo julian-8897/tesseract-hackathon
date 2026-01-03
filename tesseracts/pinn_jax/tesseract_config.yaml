@@ -1,0 +1,3 @@
+name: pinn_jax
+version: 0.1.0
+description: "Physics-Informed Neural Network (JAX/Equinox) for solving PDEs"

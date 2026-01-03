@@ -1,53 +1,82 @@
-# Tesseract Hackathon Template
+# Tesseract Cross-Framework Autodiff Demo
 
-A ready-to-use template for building projects with [Tesseract Core](https://github.com/pasteurlabs/tesseract-core) and [Tesseract-JAX](https://github.com/pasteurlabs/tesseract-jax), featuring two interacting tesseracts that demonstrate vector scaling and similarity computation. Intended as a starting point for participants of the [Tesseract Hackathon](link TODO).
+**Inverse Problem: Inferring Viscosity from Burgers Equation**
 
-> [!WARNING]
-> Using this template is *not* required to participate in the Hackathon. You may use any tools at your disposal, including [Tesseract Core](https://github.com/pasteurlabs/tesseract-core), [Tesseract-JAX](https://github.com/pasteurlabs/tesseract-jax), and [Tesseract-Streamlit](https://github.com/pasteurlabs/tesseract-streamlit) — or composing Tesseracts via `docker run` calls in a glorified shell script. Your imagination is the limit!
+This project showcases Tesseract's key capability: **cross-framework automatic differentiation**. The same inverse problem code works with either JAX or PyTorch PINN implementations, and JAX gradients flow seamlessly through PyTorch via Tesseract's VJP endpoint!
 
-#### See also
-- [Tesseract Core Documentation](https://github.com/pasteurlabs/tesseract-core)
-- [Tesseract-JAX Documentation](https://github.com/pasteurlabs/tesseract-jax)
-- [Tesseract showcase](https://si-tesseract.discourse.group/c/showcase/11)
-- [Get help @ Tesseract User Forums](https://si-tesseract.discourse.group/)
+## 🎯 What This Demo Does
 
-## Overview
+Given observed solution data from the Burgers equation:
 
-This template demonstrates how to:
-1. Define Tesseracts ([`tesseracts/*`](tesseracts)).
-2. Build them locally ([`buildall.sh`](buildall.sh)).
-3. Serve Tesseracts locally, and compose them into a (differentiable) pipeline via the [Tesseract Core SDK](https://docs.pasteurlabs.ai/projects/tesseract-core/latest/content/api/tesseract-api.html) and [Tesseract-JAX](https://github.com/pasteurlabs/tesseract-jax) ([`main.py`](main.py)).
+$$\frac{\partial u}{\partial t} + u \frac{\partial u}{\partial x} = \nu \frac{\partial^2 u}{\partial x^2}$$
 
-### Included Tesseracts
+We use a **Physics-Informed Neural Network (PINN)** to infer the unknown viscosity parameter $\nu$.
 
-Example Tesseracts are minimal and meant as starting point for you to build upon.
+### Key Features
 
-1. scaler ([`tesseracts/scaler`](tesseracts/scaler))
-   - Scales input vectors by a given factor.
-   - Implements a vector-Jacobian product by hand for autodiff.
-2. dotproduct ([`tesseracts/dotproduct`](tesseracts/dotproduct))
-   - Computes dot product between two vectors.
-   - Calculates cosine similarity.
-   - Uses the [Tesseract JAX recipe](https://docs.pasteurlabs.ai/projects/tesseract-core/latest/content/creating-tesseracts/create.html#initialize-a-new-tesseract) to enable automatic differentiation.
+✅ **Swappable Backends**: Same code works with `pinn_jax` or `pinn_pytorch`  
+✅ **Cross-Framework Gradients**: `jax.grad` computes gradients through PyTorch  
+✅ **Internal Autodiff**: Derivatives computed via framework-native autodiff (no finite differences)  
+✅ **Interactive Demo**: Streamlit app with live training visualization  
+✅ **Side-by-Side Comparison**: Compare JAX vs PyTorch performance
 
-### Pipeline Demo
-
-The example script [`main.py`](main.py) demonstrates two ways to compose Tesseracts into pipelines.
-
-#### Path 1: Calling Tesseracts manually
-
-- Call Tesseracts via [Tesseract Core SDK](https://docs.pasteurlabs.ai/projects/tesseract-core/latest/content/api/tesseract-api.html).
-
-#### Path 2: Composing Tesseracts with Tesseract-JAX
-
-- Wrap Tesseract calls in a differentiable JAX function using [Tesseract-JAX](https://github.com/pasteurlabs/tesseract-jax).
-
-## Get Started
+## 🚀 Quick Start
 
 ### Prerequisites
 
-- Python 3.10 or higher, ideally with a virtual environment (e.g. via `venv`, `conda`, or `uv`).
-- Working Docker setup for the current user ([Docker Desktop recommended](https://docs.pasteurlabs.ai/projects/tesseract-core/latest/content/introduction/installation.html#installing-docker)).
+- Python 3.10 or higher
+- Docker ([Docker Desktop recommended](https://docs.docker.com/desktop/))
+- `uv` package manager (or use `pip`/`conda`)
+
+
+### Installation
+
+1. Clone the repository
+2. Install dependencies:
+
+```bash
+uv pip install -e .
+# Or with pip: pip install -e .
+```
+
+3. Build the PINN tesseracts:
+
+```bash
+./buildall.sh
+```
+
+This will build Docker images for both `pinn_jax` and `pinn_pytorch`.
+
+## 💡 Example Results
+
+**Command-Line Output:**
+```
+================================================================
+  CROSS-FRAMEWORK AUTODIFF DEMO
+  Tesseract enables jax.grad through PyTorch!
+================================================================
+
+✓ JAX PINN tesseract ready
+Epoch  100 | ν: 0.048923 | Error: 0.001077 | Loss: 0.000542
+
+✓ PyTorch PINN tesseract ready  
+Epoch  100 | ν: 0.049156 | Error: 0.000844 | Loss: 0.000487
+
+→ JAX is 1.2x faster than PyTorch
+```
+
+**Key Insight**: Both backends converge to the true viscosity (ν=0.05) with <3% error!
+
+## 🔗 Resources
+
+- [Tesseract Core Documentation](https://github.com/pasteurlabs/tesseract-core)
+- [Tesseract-JAX Documentation](https://github.com/pasteurlabs/tesseract-jax)
+- [Tesseract Showcase](https://si-tesseract.discourse.group/c/showcase/11)
+- [Get Help @ Tesseract Forums](https://si-tesseract.discourse.group/)
+
+## 📝 License
+
+See [LICENSE](LICENSE) file for details.
 
 ### Quickstart
 

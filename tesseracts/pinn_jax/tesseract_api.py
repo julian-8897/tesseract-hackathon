@@ -143,13 +143,11 @@ def apply_jit(inputs: dict) -> dict:
 
     u_pred = jax.vmap(u_fn)(x, t)
 
-    # u_x: ∂u/∂x via autodiff
+    # partial derivatives via autodiff
     u_x = jax.vmap(jax.grad(u_fn, argnums=0))(x, t)
 
-    # u_t: ∂u/∂t via autodiff
     u_t = jax.vmap(jax.grad(u_fn, argnums=1))(x, t)
 
-    # u_xx: ∂²u/∂x² via second-order autodiff
     def u_x_fn(x_val, t_val):
         return jax.grad(u_fn, argnums=0)(x_val, t_val)
 

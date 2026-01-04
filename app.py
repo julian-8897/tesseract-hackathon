@@ -23,7 +23,7 @@ from inverse_problem import (
 
 st.set_page_config(
     page_title="Tesseract Inverse Problem Demo",
-    page_icon="🔮",
+    page_icon="🧊",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -239,101 +239,6 @@ def render_gradient_flow_inspector(backend, gradient_metrics):
             """)
 
 
-def compute_loss_instrumented(
-    viscosity,
-    params_flat,
-    x_obs,
-    t_obs,
-    u_obs,
-    x_col,
-    t_col,
-    x_ic,
-    t_bc,
-    pinn,
-    track_calls=False,
-    call_tracker=None,
-):
-    """Instrumented version of compute_loss that tracks Tesseract API calls."""
-    if track_calls and call_tracker is not None:
-        call_tracker["apply_calls"] = call_tracker.get("apply_calls", 0)
-
-    # Data Loss - Track this call
-    if track_calls and call_tracker is not None:
-        call_tracker["apply_calls"] += 1
-
-    result_obs = apply_tesseract(
-        pinn,
-        {
-            "x": x_obs,
-            "t": t_obs,
-            "params_flat": params_flat,
-        },
-    )
-    u_pred = result_obs["u_pred"]
-    data_loss = jnp.mean((u_pred - u_obs) ** 2)
-
-    # Physics Loss - Track this call
-    if track_calls and call_tracker is not None:
-        call_tracker["apply_calls"] += 1
-
-    result_col = apply_tesseract(
-        pinn, {"x": x_col, "t": t_col, "params_flat": params_flat}
-    )
-    u_col = result_col["u_pred"]
-    u_x = result_col["u_x"]
-    u_t = result_col["u_t"]
-    u_xx = result_col["u_xx"]
-    residual = u_t + u_col * u_x - viscosity * u_xx
-    physics_loss = jnp.mean(residual**2)
-
-    # IC Loss - Track this call
-    if track_calls and call_tracker is not None:
-        call_tracker["apply_calls"] += 1
-
-    t_ic = jnp.zeros_like(x_ic)
-    result_ic = apply_tesseract(
-        pinn,
-        {
-            "x": x_ic,
-            "t": t_ic,
-            "params_flat": params_flat,
-        },
-    )
-    u_ic = result_ic["u_pred"]
-    u_ic_true = jnp.sin(2 * jnp.pi * x_ic)
-    ic_loss = jnp.mean((u_ic - u_ic_true) ** 2)
-
-    # BC Loss - Track this call
-    if track_calls and call_tracker is not None:
-        call_tracker["apply_calls"] += 2  # Two apply calls for left/right
-
-    x_left = jnp.zeros_like(t_bc)
-    x_right = jnp.ones_like(t_bc)
-    result_left = apply_tesseract(
-        pinn,
-        {
-            "x": x_left,
-            "t": t_bc,
-            "params_flat": params_flat,
-        },
-    )
-    result_right = apply_tesseract(
-        pinn,
-        {
-            "x": x_right,
-            "t": t_bc,
-            "params_flat": params_flat,
-        },
-    )
-    u_left = result_left["u_pred"]
-    u_right = result_right["u_pred"]
-    bc_loss = jnp.mean((u_left - u_right) ** 2)
-
-    total_loss = data_loss + 0.1 * physics_loss + 0.5 * ic_loss + 0.5 * bc_loss
-
-    return total_loss
-
-
 def train_step(
     backend,
     viscosity,
@@ -354,57 +259,19 @@ def train_step(
     track_gradients=False,
 ):
     """Single training step with optional gradient flow tracking."""
-    call_tracker = {"apply_calls": 0, "vjp_calls": 0}
+    import jax
 
-    # Define gradient functions
-    if track_gradients:
-        grad_visc = jax.grad(
-            lambda v, p: compute_loss_instrumented(
-                v,
-                p,
-                x_obs,
-                t_obs,
-                u_obs,
-                x_col,
-                t_col,
-                x_ic,
-                t_bc,
-                pinn,
-                track_calls=True,
-                call_tracker=call_tracker,
-            ),
-            argnums=0,
-        )
-
-        grad_params = jax.grad(
-            lambda v, p: compute_loss_instrumented(
-                v,
-                p,
-                x_obs,
-                t_obs,
-                u_obs,
-                x_col,
-                t_col,
-                x_ic,
-                t_bc,
-                pinn,
-                track_calls=True,
-                call_tracker=call_tracker,
-            ),
-            argnums=1,
-        )
-    else:
-        grad_visc = jax.grad(compute_loss, argnums=0)
-        grad_params = jax.grad(compute_loss, argnums=1)
+    # Always use the original compute_loss - simplified approach
+    grad_visc = jax.grad(compute_loss, argnums=0)
+    grad_params = jax.grad(compute_loss, argnums=1)
 
     # Compute gradients - This triggers VJP calls!
-    if track_gradients:
-        call_tracker["vjp_calls"] += 1
-    v_grad = grad_visc(viscosity, params_flat)
-
-    if track_gradients:
-        call_tracker["vjp_calls"] += 1
-    p_grad = grad_params(viscosity, params_flat)
+    v_grad = grad_visc(
+        viscosity, params_flat, x_obs, t_obs, u_obs, x_col, t_col, x_ic, t_bc, pinn
+    )
+    p_grad = grad_params(
+        viscosity, params_flat, x_obs, t_obs, u_obs, x_col, t_col, x_ic, t_bc, pinn
+    )
 
     # Compute gradient norms
     visc_grad_norm = float(jnp.linalg.norm(v_grad))
@@ -428,12 +295,16 @@ def train_step(
     if track_gradients:
         metrics = GradientFlowMetrics(
             epoch=epoch,
-            vjp_calls=call_tracker.get("vjp_calls", 0),
-            apply_calls=call_tracker.get("apply_calls", 0),
+            vjp_calls=2,  # One for viscosity grad, one for params grad
+            apply_calls=5,  # Data, physics, IC, BC_left, BC_right in compute_loss
             visc_grad_norm=visc_grad_norm,
             param_grad_norm=param_grad_norm,
             loss_value=float(loss),
-            shapes={"x": x_obs.shape, "t": t_obs.shape, "params": params_flat.shape},
+            shapes={
+                "x_obs": tuple(x_obs.shape),
+                "t_obs": tuple(t_obs.shape),
+                "params_flat": tuple(params_flat.shape),
+            },
         )
 
     return viscosity, params_flat, visc_opt_state, param_opt_state, float(loss), metrics
@@ -454,17 +325,16 @@ def main():
     """
     )
 
-    # Sidebar controls
-    st.sidebar.header("⚙️ Configuration")
+    st.sidebar.header("⛭ Configuration")
 
     backend = st.sidebar.selectbox(
         "Backend",
         ["jax", "pytorch"],
-        help="Choose which PINN tesseract to use. Same code works with both!",
+        help="Run the same inverse Burgers pipeline with either a JAX or PyTorch PINN backend.",
     )
 
     true_viscosity = st.sidebar.slider(
-        "True Viscosity (ν)",
+        "rTrue viscosity $\nu$",
         min_value=0.01,
         max_value=0.2,
         value=0.05,
@@ -505,7 +375,7 @@ def main():
         max_value=500,
         value=100,
         step=10,
-        help="Number of optimization iterations",
+        help="Number of training epochs for PINN",
     )
 
     learning_rate = st.sidebar.slider(
@@ -518,19 +388,17 @@ def main():
         help="Optimizer learning rate",
     )
 
-    # Add Gradient Flow Inspector toggle
+    # Gradient Flow Inspection
     st.sidebar.markdown("---")
-    st.sidebar.subheader("🔬 Advanced Features")
+    st.sidebar.subheader("⛮ Additional Features")
     show_gradient_inspector = st.sidebar.checkbox(
         "Enable Gradient Flow Inspector",
         value=False,
         help="Track and visualize Tesseract's autodiff operations (slight performance overhead)",
     )
 
-    # Training button
-    if st.sidebar.button("🚀 Train Model", type="primary"):
+    if st.sidebar.button("Train Model", type="primary"):
         st.session_state.training = True
-        # Reset gradient metrics when starting new training
         st.session_state.gradient_metrics = []
 
     # Main content
@@ -539,7 +407,6 @@ def main():
         domain = {"x": (0.0, 1.0), "t": (0.0, 1.0)}
         key = jax.random.PRNGKey(123)
 
-        # Generate observations
         keys = jax.random.split(key, 3)
         x_obs = jax.random.uniform(
             keys[0], (n_obs,), minval=domain["x"][0], maxval=domain["x"][1]
@@ -552,7 +419,7 @@ def main():
         noise = jax.random.normal(keys[2], (n_obs,)) * noise_level
         u_obs = u_observed + noise
 
-        # Generate collocation points
+        # Make collocation points
         key_col, key_ic, key_bc = jax.random.split(key, 3)
         n_col = 200
         x_col = jax.random.uniform(
@@ -606,7 +473,7 @@ def main():
         metric_loss = metric_col3.empty()
         metric_time = metric_col4.empty()
 
-        # Plots
+        # Plots for tracking performance
         plot_col1, plot_col2 = st.columns(2)
         with plot_col1:
             st.subheader("Viscosity Convergence")
@@ -714,7 +581,6 @@ def main():
                     loss_chart.pyplot(fig2)
                     plt.close(fig2)
 
-            # Final results
             st.markdown("---")
             st.success("✅ Training Complete!")
 
@@ -783,17 +649,17 @@ def main():
                     backend, st.session_state.gradient_metrics
                 )
 
-            # Key takeaway
             st.markdown("---")
             st.info(
-                f"""
-            **🔑 Key Takeaway**: 
-            
-            This demo used the **{backend.upper()}** PINN tesseract. The exact same optimization code works with either `pinn_jax` or `pinn_pytorch`!
-            
-            - For `pinn_pytorch`: JAX's `jax.grad` computes gradients **through PyTorch** via Tesseract's VJP endpoint
-            - This enables seamless model swapping with **zero code changes**
-            - Try switching backends and see identical results!
+                """
+            **🔑 Key takeaway**
+
+            This demo showcases a **Tesseract-powered inverse Burgers solver**.
+
+            - The same Tesseract pipeline runs with either a JAX or PyTorch PINN backend
+            - When using the PyTorch backend, JAX-based gradients are still available via the Tesseract VJP interface
+            - Backend choice is just a configuration detail: swap implementations without changing the optimization code
+            - Try toggling the backend and see that the Tesseract component behaves identically
             """
             )
 
@@ -803,7 +669,7 @@ def main():
         # Initial state - show info
         st.info(
             """
-        👈 Configure parameters in the sidebar and click **"Train Model"** to start!
+        ◀ Configure parameters in the sidebar and click **"Train Model"** to begin demonstration.
         
         **What this demo does:**
         - Generates synthetic observation data from Burgers equation

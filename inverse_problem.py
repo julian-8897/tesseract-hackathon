@@ -1,12 +1,11 @@
-"""
-Inverse Problem Demo: JAX PINN vs PyTorch PINN
+"""Inverse problem demo for viscosity inference in Burgers equation.
 
-Demonstrates Tesseract's key capability: cross-framework autodiff.
-- Same inverse problem code works with either pinn_jax or pinn_pytorch
-- jax.grad flows through PyTorch PINN via Tesseract's VJP endpoint
-- Compare training speed between frameworks
+Demonstrates cross-framework automatic differentiation via Tesseract:
+- Same optimization code runs with JAX or PyTorch PINN backends
+- JAX gradients computed through PyTorch models via VJP endpoint
+- Backend selection controlled by Tesseract image name
 
-Problem: Given observed solution data, infer the unknown viscosity ν
+Problem: Given noisy observations u(x,t), infer viscosity parameter ν
 in Burgers equation: ∂u/∂t + u·∂u/∂x = ν·∂²u/∂x²
 """
 
@@ -16,6 +15,7 @@ import time
 import jax
 import jax.numpy as jnp
 import optax
+import torch
 from tesseract_core import Tesseract
 from tesseract_jax import apply_tesseract
 
@@ -36,8 +36,6 @@ def get_initial_params(backend="jax"):
     else:  # pytorch
         # For PyTorch, initialize from actual model for proper initialization
         sys.path.insert(0, "tesseracts/pinn_pytorch")
-        # Use seed=42 for consistent initialization (matches JAX)
-        import torch
         from tesseract_api import PINNNet, flatten_params
 
         torch.manual_seed(42)
@@ -79,16 +77,15 @@ def generate_observations(n_points, true_viscosity, domain, key):
 def compute_loss(
     viscosity, params_flat, x_obs, t_obs, u_obs, x_col, t_col, x_ic, t_bc, pinn
 ):
-    """
-    Total PINN loss for inverse problem.
+    """Compute total PINN loss for inverse problem.
 
     Components:
     1. Data loss: fit observations
-    2. Physics loss: satisfy PDE residual using finite differences
+    2. Physics loss: satisfy PDE residual
     3. Initial condition loss: u(x, 0) = sin(2πx)
     4. Boundary condition loss: periodic BCs u(0,t) = u(1,t)
 
-    All differentiable w.r.t. viscosity via Tesseract autodiff!
+    All terms are differentiable with respect to viscosity.
     """
     # ========== Data Loss ==========
     result_obs = apply_tesseract(
@@ -104,19 +101,19 @@ def compute_loss(
 
     # ========== Physics Loss (PDE Residual) ==========
     # Burgers equation: ∂u/∂t + u·∂u/∂x - ν·∂²u/∂x² = 0
-    # Get u AND derivatives in ONE call - computed via autodiff inside tesseract!
+    # Derivatives computed via autodiff inside tesseract
 
     result_col = apply_tesseract(
         pinn, {"x": x_col, "t": t_col, "params_flat": params_flat}
     )
 
-    # Extract solution and derivatives (computed via framework's autodiff)
+    # Extract solution and derivatives
     u_col = result_col["u_pred"]  # Solution values
-    u_x = result_col["u_x"]  # ∂u/∂x (exact from autodiff!)
-    u_t = result_col["u_t"]  # ∂u/∂t (exact from autodiff!)
-    u_xx = result_col["u_xx"]  # ∂²u/∂x² (exact from autodiff!)
+    u_x = result_col["u_x"]  # ∂u/∂x
+    u_t = result_col["u_t"]  # ∂u/∂t
+    u_xx = result_col["u_xx"]  # ∂²u/∂x²
 
-    # Burgers residual - now using exact derivatives
+    # Burgers residual
     residual = u_t + u_col * u_x - viscosity * u_xx
     physics_loss = jnp.mean(residual**2)
 
@@ -229,14 +226,13 @@ def run_inverse_problem(
     param_optimizer = optax.adam(1e-3)
     param_opt_state = param_optimizer.init(params_flat)
 
-    # Gradient functions - THIS IS WHERE TESSERACT AUTODIFF SHINES!
-    # jax.grad will compute gradients that flow THROUGH the tesseract
-    # For PyTorch PINN, this means JAX gradients flow through PyTorch!
+    # Gradient functions
+    # jax.grad computes gradients through the tesseract VJP endpoint
     grad_visc = jax.grad(compute_loss, argnums=0)
     grad_params = jax.grad(compute_loss, argnums=1)
 
     with pinn:
-        print(f"\n✓ {backend.upper()} PINN tesseract ready")
+        print(f"\n{backend.upper()} PINN tesseract initialized")
         print("\nOptimizing...")
         print("-" * 60)
 
@@ -247,7 +243,6 @@ def run_inverse_problem(
             start_time = time.time()
 
             # Compute gradients
-            # For pinn_pytorch, this calls the VJP endpoint we implemented!
             v_grad = grad_visc(
                 viscosity,
                 params_flat,
@@ -335,8 +330,7 @@ def compare_backends(n_epochs=50, n_obs=80):
     """Run inverse problem with both backends and compare."""
 
     print("\n" + "=" * 70)
-    print("  CROSS-FRAMEWORK AUTODIFF DEMO")
-    print("  Tesseract enables jax.grad through PyTorch!")
+    print("  CROSS-FRAMEWORK AUTODIFF COMPARISON")
     print("=" * 70)
 
     results = {}
@@ -382,13 +376,13 @@ def compare_backends(n_epochs=50, n_obs=80):
         print(f"\n→ PyTorch is {1 / speedup:.1f}x faster than JAX")
 
     print("\n" + "=" * 70)
-    print("  KEY TAKEAWAY")
+    print("  NOTES")
     print("=" * 70)
     print("""
-  ✓ Same inverse problem code works with BOTH backends
-  ✓ jax.grad computes gradients through PyTorch via Tesseract VJP
-  ✓ Swap models with one line: Tesseract.from_image("pinn_jax" or "pinn_pytorch")
-  ✓ This is impossible without Tesseract's cross-framework autodiff!
+  The same optimization pipeline executes with both backends.
+  Gradients are computed via Tesseract's VJP endpoint (jax.grad through PyTorch).
+  Backends can be swapped by changing the Tesseract image name.
+  This demonstrates cross-framework automatic differentiation.
 """)
 
     return results

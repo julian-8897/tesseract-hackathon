@@ -50,7 +50,8 @@ where:
 - $\mathcal{L}_{\text{physics}}$: PDE residual at collocation points
 - $\mathcal{L}_{\text{IC}}$: initial condition violation
 - $\mathcal{L}_{\text{BC}}$: boundary condition violation
-
+- 
+Note: In this demo, synthetic data are generated from a heat‑equation approximation of Burgers for small viscosity, which remains smooth and does not exhibit shock formation. The focus is on inverse viscosity estimation and pipeline‑level autodiff, not on resolving nonlinear shock dynamics.
 ---
 
 ## Implementation

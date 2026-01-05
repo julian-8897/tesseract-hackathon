@@ -87,7 +87,7 @@ def compute_loss(
 
     All terms are differentiable with respect to viscosity.
     """
-    # ========== Data Loss ==========
+    # Data loss
     result_obs = apply_tesseract(
         pinn,
         {
@@ -99,15 +99,11 @@ def compute_loss(
     u_pred = result_obs["u_pred"]
     data_loss = jnp.mean((u_pred - u_obs) ** 2)
 
-    # ========== Physics Loss (PDE Residual) ==========
-    # Burgers equation: ∂u/∂t + u·∂u/∂x - ν·∂²u/∂x² = 0
-    # Derivatives computed via autodiff inside tesseract
-
+    # PDE residual loss components
     result_col = apply_tesseract(
         pinn, {"x": x_col, "t": t_col, "params_flat": params_flat}
     )
 
-    # Extract solution and derivatives
     u_col = result_col["u_pred"]  # Solution values
     u_x = result_col["u_x"]  # ∂u/∂x
     u_t = result_col["u_t"]  # ∂u/∂t
@@ -117,8 +113,7 @@ def compute_loss(
     residual = u_t + u_col * u_x - viscosity * u_xx
     physics_loss = jnp.mean(residual**2)
 
-    # ========== Initial Condition Loss ==========
-    # u(x, 0) = sin(2πx)
+    # IC loss (sin(2πx) at t=0) and BC loss (periodic)
     t_ic = jnp.zeros_like(x_ic)
     result_ic = apply_tesseract(
         pinn,
@@ -132,8 +127,6 @@ def compute_loss(
     u_ic_true = jnp.sin(2 * jnp.pi * x_ic)
     ic_loss = jnp.mean((u_ic - u_ic_true) ** 2)
 
-    # ========== Boundary Condition Loss ==========
-    # Periodic BC: u(0, t) = u(1, t)
     x_left = jnp.zeros_like(t_bc)
     x_right = jnp.ones_like(t_bc)
 
@@ -157,8 +150,7 @@ def compute_loss(
     u_right = result_right["u_pred"]
     bc_loss = jnp.mean((u_left - u_right) ** 2)
 
-    # ========== Total Loss ==========
-    # Weight the losses: data is primary, physics constrains, IC and BC anchor
+    # Total Loss with preconfigured weights
     total_loss = data_loss + 0.1 * physics_loss + 0.5 * ic_loss + 0.5 * bc_loss
 
     return total_loss
@@ -186,40 +178,33 @@ def run_inverse_problem(
     print(f"True viscosity:    ν = {true_viscosity}")
     print(f"Initial guess:     ν = {initial_viscosity}")
 
-    # Generate observations
+    # Make observations and collocation points
     key = jax.random.PRNGKey(123)
     x_obs, t_obs, u_obs = generate_observations(n_obs, true_viscosity, domain, key)
-
-    # Generate collocation points for physics loss
     key_col, key_ic, key_bc = jax.random.split(key, 3)
-    n_col = 200  # Physics residual points
+    n_col = 200  
     x_col = jax.random.uniform(
         key_col, (n_col,), minval=domain["x"][0], maxval=domain["x"][1]
     )
     t_col = jax.random.uniform(key_col, (n_col,), minval=0.05, maxval=domain["t"][1])
 
-    # Initial condition points
+    
     n_ic = 50
     x_ic = jax.random.uniform(
         key_ic, (n_ic,), minval=domain["x"][0], maxval=domain["x"][1]
     )
 
-    # Boundary condition points
     n_bc = 50
     t_bc = jax.random.uniform(key_bc, (n_bc,), minval=0.05, maxval=domain["t"][1])
 
-    # Initialize tesseract
     image_name = "pinn_jax" if backend == "jax" else "pinn_pytorch"
     pinn = Tesseract.from_image(image_name)
 
-    # Get initial parameters
     params_flat = get_initial_params(backend)
     print(f"Model parameters: {params_flat.size}")
 
-    # Initialize viscosity as learnable parameter
     viscosity = jnp.array(initial_viscosity)
-
-    # Optimizers
+    
     visc_optimizer = optax.adam(learning_rate)
     visc_opt_state = visc_optimizer.init(viscosity)
 
@@ -305,7 +290,6 @@ def run_inverse_problem(
 
         print("-" * 60)
 
-        # Results
         final_viscosity = float(viscosity)
         relative_error = abs(final_viscosity - true_viscosity) / true_viscosity * 100
         avg_time = sum(times) / len(times) * 1000

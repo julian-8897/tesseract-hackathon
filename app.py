@@ -1,6 +1,7 @@
-"""
-Tesseract Inverse Problem Demo using Streamlit.
+"""Tesseract Cross-Framework Autodiff Demo: Inverse Burgers Equation Solver.
 
+Demonstrates Tesseract's pipeline-level automatic differentiation across JAX and PyTorch,
+enabling JAX-based optimization of PyTorch PINN models via VJP (Vector-Jacobian Product).
 """
 
 import time
@@ -22,8 +23,8 @@ from inverse_problem import (
 )
 
 st.set_page_config(
-    page_title="Tesseract Inverse Problem Demo",
-    page_icon="🧊",
+    page_title="Tesseract Cross-Framework Autodiff Demo",
+    page_icon="",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -101,9 +102,7 @@ def generate_solution_grid(viscosity, params_flat, pinn, nx=100, nt=50):
 def render_gradient_flow_inspector(backend, gradient_metrics):
     """Render the gradient flow inspector UI."""
     st.markdown("---")
-    with st.expander(
-        "🔍 **Gradient Flow Inspector** (Tesseract Internals)", expanded=True
-    ):
+    with st.expander("🔍 **Gradient Flow ** (Tesseract Internals)", expanded=True):
         st.markdown(f"""
         ### Cross-Framework Autodiff Pipeline
 
@@ -150,9 +149,8 @@ def render_gradient_flow_inspector(backend, gradient_metrics):
             st.info("Run training to see gradient flow metrics...")
             return
 
-        # Metrics tabs
         tab1, tab2, tab3 = st.tabs(
-            ["📊 Call Statistics", "📈 Gradient Norms", "🔬 Tensor Shapes"]
+            ["Call Statistics", "Gradient Norms", "Tensor Shapes"]
         )
 
         with tab1:
@@ -174,11 +172,17 @@ def render_gradient_flow_inspector(backend, gradient_metrics):
             col3.metric("Total AD operations", latest.apply_calls + latest.vjp_calls)
 
             st.info(f"""
-            **Key Insight**: Each epoch requires:
-            - **{latest.apply_calls} forward passes** (apply): Evaluate u, u_x, u_t, u_xx at collocation points
-            - **{latest.vjp_calls} backward passes** (VJP): Compute ∂L/∂ν and ∂L/∂params
-
-            {"**Cross-framework magic**: VJP calls route through PyTorch!" if backend == "pytorch" else "**Native JAX**: All operations stay in JAX"}
+            **PINN Loss Architecture**: Each epoch computes a composite loss with {latest.apply_calls} network evaluations:
+            
+            1. **Data loss** (1 call) — MSE at observation points
+            2. **Physics loss** (1 call) — PDE residual: ∂u/∂t + u·∂u/∂x - ν·∂²u/∂x² = 0
+            3. **Initial condition** (1 call) — Enforce u(x, t=0) = sin(2πx)
+            4. **Boundary left** (1 call) — Periodic BC: u(0, t)
+            5. **Boundary right** (1 call) — Periodic BC: u(1, t) = u(0, t)
+            
+            Then **{latest.vjp_calls} VJP calls** compute gradients: ∂L/∂ν and ∂L/∂params
+            
+            {"VJP calls route through PyTorch autograd" if backend == "pytorch" else "**Native JAX**: All operations use jax.grad"}
             """)
 
         with tab2:
@@ -190,7 +194,6 @@ def render_gradient_flow_inspector(backend, gradient_metrics):
 
             fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
 
-            # Viscosity gradient
             ax1.semilogy(
                 epochs, visc_grads, "o-", color="#2ecc71", linewidth=2, markersize=4
             )
@@ -199,7 +202,6 @@ def render_gradient_flow_inspector(backend, gradient_metrics):
             ax1.set_title("Viscosity Gradient Norm")
             ax1.grid(alpha=0.3)
 
-            # Parameter gradient
             ax2.semilogy(
                 epochs, param_grads, "o-", color="#e74c3c", linewidth=2, markersize=4
             )
@@ -259,13 +261,10 @@ def train_step(
     track_gradients=False,
 ):
     """Single training step with optional gradient flow tracking."""
-    import jax
 
-    # Always use the original compute_loss - simplified approach
     grad_visc = jax.grad(compute_loss, argnums=0)
     grad_params = jax.grad(compute_loss, argnums=1)
 
-    # Compute gradients - This triggers VJP calls!
     v_grad = grad_visc(
         viscosity, params_flat, x_obs, t_obs, u_obs, x_col, t_col, x_ic, t_bc, pinn
     )
@@ -295,8 +294,8 @@ def train_step(
     if track_gradients:
         metrics = GradientFlowMetrics(
             epoch=epoch,
-            vjp_calls=2,  # One for viscosity grad, one for params grad
-            apply_calls=5,  # Data, physics, IC, BC_left, BC_right in compute_loss
+            vjp_calls=2,
+            apply_calls=5,
             visc_grad_norm=visc_grad_norm,
             param_grad_norm=param_grad_norm,
             loss_value=float(loss),
@@ -313,60 +312,69 @@ def train_step(
 def main():
     initialize_session_state()
 
-    st.title("Tesseract: Cross-Framework Autodiff Demo")
-    st.markdown(
-        """
-    ### Inverse Problem: Inferring Viscosity from Burgers Equation
-    
-    This demo showcases **Tesseract's capabilities**: enabling JAX gradients to flow through PyTorch models
-    
-    **Problem**: Given observed solution data, infer the unknown viscosity $\\nu$ in:
-    $$\\frac{\\partial u}{\\partial t} + u \\frac{\\partial u}{\\partial x} = \\nu \\frac{\\partial^2 u}{\\partial x^2}$$
-    """
+    st.title(
+        "Tesseract Inverse 1D Burgers Equation Solver: Cross-Framework Autodiff Demo"
     )
 
-    st.sidebar.header("⛭ Configuration")
+    st.subheader("Backend-agnostic viscosity estimation with PINNs")
+
+    st.markdown("""
+    **Goal**: Use Tesseract to run the same inverse 1D Burgers solver with either a JAX or PyTorch PINN backend, 
+    while keeping one JAX-based optimization pipeline.
+    
+    A JAX optimizer computes gradients through the selected backend via Tesseract's VJP interface, showcasing 
+    pipeline-level automatic differentiation across frameworks.
+    """)
+
+    st.markdown(
+        "**Problem**: Given noisy observations of the 1D Burgers equation solution, infer the unknown viscosity parameter $\\nu$:"
+    )
+    st.latex(
+        r"\frac{\partial u}{\partial t} + u \frac{\partial u}{\partial x} = \nu \frac{\partial^2 u}{\partial x^2}"
+    )
+
+    st.sidebar.header("⚙️ Configuration")
 
     backend = st.sidebar.selectbox(
-        "Backend",
+        "PINN Backend",
         ["jax", "pytorch"],
-        help="Run the same inverse Burgers pipeline with either a JAX or PyTorch PINN backend.",
+        help="Select backend implementation. Both expose identical Tesseract endpoints (apply/VJP/JVP), enabling seamless backend switching.",
     )
 
     true_viscosity = st.sidebar.slider(
-        "rTrue viscosity $\nu$",
+        "True Viscosity $\\nu$ (Ground Truth)",
         min_value=0.01,
         max_value=0.2,
         value=0.05,
         step=0.01,
-        help="The true viscosity we're trying to infer",
+        help="Ground truth viscosity parameter used to generate synthetic observations",
     )
 
     initial_viscosity = st.sidebar.slider(
-        "Initial Guess",
+        "Initial Viscosity Guess $\\nu_0$",
         min_value=0.001,
         max_value=0.1,
         value=0.01,
         step=0.001,
-        help="Starting point for optimization",
+        help="Initial estimate for gradient-based optimization (typically set below ground truth)",
     )
 
     n_obs = st.sidebar.slider(
-        "Observations",
+        "Number of Observations",
         min_value=20,
         max_value=200,
         value=100,
         step=20,
-        help="Number of observed data points",
+        help="Number of spatiotemporal observation points for data loss term",
     )
 
     noise_level = st.sidebar.slider(
-        "Noise Level",
+        "Observation Noise (σ)",
         min_value=0.0,
         max_value=0.1,
         value=0.02,
         step=0.01,
-        help="Standard deviation of observation noise",
+        help="Standard deviation of additive Gaussian noise in synthetic observations",
     )
 
     n_epochs = st.sidebar.slider(
@@ -390,18 +398,17 @@ def main():
 
     # Gradient Flow Inspection
     st.sidebar.markdown("---")
-    st.sidebar.subheader("⛮ Additional Features")
+    st.sidebar.subheader("Additional Options")
     show_gradient_inspector = st.sidebar.checkbox(
         "Enable Gradient Flow Inspector",
         value=False,
-        help="Track and visualize Tesseract's autodiff operations (slight performance overhead)",
+        help="Track Tesseract API calls (apply/VJP), gradient norms, and tensor shapes through the autodiff pipeline",
     )
 
     if st.sidebar.button("Train Model", type="primary"):
         st.session_state.training = True
         st.session_state.gradient_metrics = []
 
-    # Main content
     if st.session_state.training:
         # Setup
         domain = {"x": (0.0, 1.0), "t": (0.0, 1.0)}
@@ -445,13 +452,11 @@ def main():
         # Initialize viscosity
         viscosity = jnp.array(initial_viscosity)
 
-        # Optimizers
         visc_optimizer = optax.adam(learning_rate)
         visc_opt_state = visc_optimizer.init(viscosity)
         param_optimizer = optax.adam(1e-3)
         param_opt_state = param_optimizer.init(params_flat)
 
-        # Training display
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("Backend", backend.upper())
@@ -462,18 +467,15 @@ def main():
 
         st.markdown("---")
 
-        # Progress tracking
         progress_bar = st.progress(0)
         status_text = st.empty()
 
-        # Metrics display
         metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
         metric_visc = metric_col1.empty()
         metric_error = metric_col2.empty()
         metric_loss = metric_col3.empty()
         metric_time = metric_col4.empty()
 
-        # Plots for tracking performance
         plot_col1, plot_col2 = st.columns(2)
         with plot_col1:
             st.subheader("Viscosity Convergence")
@@ -482,7 +484,6 @@ def main():
             st.subheader("Training Loss")
             loss_chart = st.empty()
 
-        # Initialize histories
         visc_history = [float(initial_viscosity)]
         loss_history = []
         time_history = []
@@ -544,7 +545,6 @@ def main():
                     progress_bar.progress(progress)
                     status_text.text(f"Epoch {epoch + 1}/{n_epochs}")
 
-                    # Update metrics
                     metric_visc.metric(
                         "Current ν",
                         f"{visc_val:.6f}",
@@ -554,7 +554,6 @@ def main():
                     metric_loss.metric("Loss", f"{loss:.6f}")
                     metric_time.metric("Epoch Time", f"{epoch_time * 1000:.1f}ms")
 
-                    # Update plots
                     fig1, ax1 = plt.subplots(figsize=(6, 4))
                     ax1.plot(
                         visc_history, label="Inferred ν", color="#1f77b4", linewidth=2
@@ -582,7 +581,7 @@ def main():
                     plt.close(fig2)
 
             st.markdown("---")
-            st.success("✅ Training Complete!")
+            st.success("Finished Training! ✅")
 
             final_visc = float(viscosity)
             final_error = abs(final_visc - true_viscosity) / true_viscosity * 100
@@ -593,9 +592,8 @@ def main():
             col3.metric("Relative Error", f"{final_error:.2f}%")
             col4.metric("Avg Time/Epoch", f"{np.mean(time_history) * 1000:.1f}ms")
 
-            # Solution visualization
             st.markdown("---")
-            st.subheader("🎨 Solution Visualization")
+            st.subheader("Visualizing PINN vs Analytical Solution")
 
             with st.spinner("Generating solution visualization..."):
                 X, T, u_pred, u_analytical = generate_solution_grid(
@@ -604,29 +602,25 @@ def main():
 
             fig, axes = plt.subplots(1, 3, figsize=(18, 5))
 
-            # PINN solution
-            im0 = axes[0].contourf(X, T, u_pred, levels=20, cmap="RdBu_r")
+            im0 = axes[0].contourf(T, X, u_pred, levels=20, cmap="RdBu_r")
             axes[0].set_xlabel("x")
             axes[0].set_ylabel("t")
             axes[0].set_title(f"PINN Solution (ν={final_visc:.4f})")
             plt.colorbar(im0, ax=axes[0])
 
-            # Analytical solution
-            im1 = axes[1].contourf(X, T, u_analytical, levels=20, cmap="RdBu_r")
+            im1 = axes[1].contourf(T, X, u_analytical, levels=20, cmap="RdBu_r")
             axes[1].set_xlabel("x")
             axes[1].set_ylabel("t")
             axes[1].set_title(f"Analytical Solution (ν={true_viscosity:.4f})")
             plt.colorbar(im1, ax=axes[1])
 
-            # Error
             error_map = np.abs(u_pred - u_analytical)
-            im2 = axes[2].contourf(X, T, error_map, levels=20, cmap="hot")
+            im2 = axes[2].contourf(T, X, error_map, levels=20, cmap="hot")
             axes[2].set_xlabel("x")
             axes[2].set_ylabel("t")
             axes[2].set_title(f"Absolute Error (Max: {error_map.max():.4f})")
             plt.colorbar(im2, ax=axes[2])
 
-            # Add observation points
             axes[0].scatter(
                 x_obs, t_obs, c="lime", s=10, alpha=0.5, label="Observations"
             )
@@ -636,32 +630,126 @@ def main():
             st.pyplot(fig)
             plt.close(fig)
 
-            # Store results in session state
             st.session_state.trained_viscosity[backend] = final_visc
             st.session_state.viscosity_history[backend] = visc_history
             st.session_state.loss_history[backend] = loss_history
             st.session_state.params_flat[backend] = params_flat
             st.session_state.epoch_times[backend] = time_history
 
-            # Gradient Flow Inspector (if enabled)
             if show_gradient_inspector and st.session_state.gradient_metrics:
                 render_gradient_flow_inspector(
                     backend, st.session_state.gradient_metrics
                 )
 
             st.markdown("---")
-            st.info(
-                """
-            **🔑 Key takeaway**
+            st.success(f"✅ **{backend.upper()} Training Complete!**")
 
-            This demo showcases a **Tesseract-powered inverse Burgers solver**.
+            # Check if we can show cross-backend comparison
+            other_backend = "pytorch" if backend == "jax" else "jax"
+            if other_backend in st.session_state.trained_viscosity:
+                st.markdown("---")
+                st.subheader("🔄 Cross-Framework Comparison")
+                st.markdown("""
+                Both backends have now been trained. Compare how JAX and PyTorch implementations 
+                converge to the same viscosity estimate, demonstrating Tesseract's backend-agnostic autodiff.
+                """)
 
-            - The same Tesseract pipeline runs with either a JAX or PyTorch PINN backend
-            - When using the PyTorch backend, JAX-based gradients are still available via the Tesseract VJP interface
-            - Backend choice is just a configuration detail: swap implementations without changing the optimization code
-            - Try toggling the backend and see that the Tesseract component behaves identically
-            """
-            )
+                # Metrics comparison
+                col1, col2, col3 = st.columns(3)
+
+                jax_visc = st.session_state.trained_viscosity["jax"]
+                pytorch_visc = st.session_state.trained_viscosity["pytorch"]
+                visc_diff = abs(jax_visc - pytorch_visc)
+
+                with col1:
+                    st.metric("JAX Result", f"{jax_visc:.6f}")
+                    st.caption(
+                        f"Avg: {np.mean(st.session_state.epoch_times['jax']) * 1000:.1f}ms/epoch"
+                    )
+
+                with col2:
+                    st.metric("PyTorch Result", f"{pytorch_visc:.6f}")
+                    st.caption(
+                        f"Avg: {np.mean(st.session_state.epoch_times['pytorch']) * 1000:.1f}ms/epoch"
+                    )
+
+                with col3:
+                    st.metric("Absolute Difference", f"{visc_diff:.6f}")
+                    st.caption("Convergence agreement")
+
+                # Convergence comparison plot
+                fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+
+                # Viscosity convergence
+                ax1.plot(
+                    st.session_state.viscosity_history["jax"],
+                    label="JAX Backend",
+                    linewidth=2.5,
+                    color="#1f77b4",
+                    alpha=0.8,
+                )
+                ax1.plot(
+                    st.session_state.viscosity_history["pytorch"],
+                    label="PyTorch Backend",
+                    linewidth=2.5,
+                    color="#ff7f0e",
+                    alpha=0.8,
+                )
+                ax1.axhline(
+                    true_viscosity,
+                    color="red",
+                    linestyle="--",
+                    linewidth=2,
+                    label=f"Ground Truth: ν = {true_viscosity}",
+                    alpha=0.6,
+                )
+                ax1.set_xlabel("Epoch", fontsize=11)
+                ax1.set_ylabel("Inferred Viscosity ν", fontsize=11)
+                ax1.set_title(
+                    "Viscosity Convergence: Backend Comparison",
+                    fontsize=12,
+                    fontweight="bold",
+                )
+                ax1.legend(framealpha=0.9)
+                ax1.grid(alpha=0.3)
+
+                # Loss comparison
+                ax2.semilogy(
+                    st.session_state.loss_history["jax"],
+                    label="JAX Backend",
+                    linewidth=2.5,
+                    color="#1f77b4",
+                    alpha=0.8,
+                )
+                ax2.semilogy(
+                    st.session_state.loss_history["pytorch"],
+                    label="PyTorch Backend",
+                    linewidth=2.5,
+                    color="#ff7f0e",
+                    alpha=0.8,
+                )
+                ax2.set_xlabel("Epoch", fontsize=11)
+                ax2.set_ylabel("Loss (log scale)", fontsize=11)
+                ax2.set_title(
+                    "Training Loss: Backend Comparison", fontsize=12, fontweight="bold"
+                )
+                ax2.legend(framealpha=0.9)
+                ax2.grid(alpha=0.3)
+
+                plt.tight_layout()
+                st.pyplot(fig)
+                plt.close(fig)
+
+                st.info(f"""
+                Both backends produced consistent viscosity estimates (absolute difference: {visc_diff:.6f}).
+                This validates that a single JAX-based optimization pipeline can compute gradients
+                through both JAX and PyTorch PINN implementations via Tesseract's VJP interface.
+                """)
+            else:
+                st.info(f"""
+                **Next Step:** Train the **{other_backend.upper()}** backend to see cross-framework comparison. 
+                Switch the backend in the sidebar and click "Train Model" again.
+                """)
 
         st.session_state.training = False
 
@@ -669,65 +757,40 @@ def main():
         # Initial state - show info
         st.info(
             """
-        ◀ Configure parameters in the sidebar and click **"Train Model"** to begin demonstration.
+        **Configure parameters in the sidebar and click "Train Model" to begin.**
         
-        **What this demo does:**
-        - Generates synthetic observation data from Burgers equation
-        - Uses a Physics-Informed Neural Network (PINN) to infer the unknown viscosity
-        - Shows real-time convergence and training metrics
-        - Visualizes the learned solution vs analytical solution
+        **Demo Workflow:**
+        1. Generate synthetic observations from the 1D Burgers equation with known viscosity
+        2. Train a Physics-Informed Neural Network (PINN) to infer the unknown viscosity parameter
+        3. Monitor real-time convergence of viscosity estimate and loss metrics
+        4. Visualize learned solution field and compare with analytical reference
+        5. (Optional) Inspect gradient flow through Tesseract's VJP interface
+        6. **Switch backends and retrain with the same hyperparameters to see backend comparison**
         """
         )
 
-        # Show comparison if both backends have been trained
-        if (
-            "jax" in st.session_state.trained_viscosity
-            and "pytorch" in st.session_state.trained_viscosity
-        ):
+        # Show previous training results if available
+        if st.session_state.trained_viscosity:
             st.markdown("---")
-            st.subheader("📊 Backend Comparison")
+            st.subheader("📋 Previous Training Results")
 
-            col1, col2 = st.columns(2)
+            trained_backends = list(st.session_state.trained_viscosity.keys())
+            cols = st.columns(len(trained_backends))
 
-            with col1:
-                st.metric(
-                    "JAX PINN", f"{st.session_state.trained_viscosity['jax']:.6f}"
-                )
-                st.metric(
-                    "Avg Time/Epoch",
-                    f"{np.mean(st.session_state.epoch_times['jax']) * 1000:.1f}ms",
-                )
+            for idx, backend_name in enumerate(trained_backends):
+                with cols[idx]:
+                    st.metric(
+                        f"{backend_name.upper()} Backend",
+                        f"ν = {st.session_state.trained_viscosity[backend_name]:.6f}",
+                    )
+                    st.caption(
+                        f"{len(st.session_state.viscosity_history[backend_name]) - 1} epochs trained"
+                    )
 
-            with col2:
-                st.metric(
-                    "PyTorch PINN",
-                    f"{st.session_state.trained_viscosity['pytorch']:.6f}",
+            if len(trained_backends) == 1:
+                st.info(
+                    "**Train the other backend** to see cross-framework comparison and validate Tesseract's autodiff portability!"
                 )
-                st.metric(
-                    "Avg Time/Epoch",
-                    f"{np.mean(st.session_state.epoch_times['pytorch']) * 1000:.1f}ms",
-                )
-
-            # Side-by-side convergence plot
-            fig, ax = plt.subplots(figsize=(10, 5))
-            ax.plot(
-                st.session_state.viscosity_history["jax"],
-                label="JAX",
-                linewidth=2,
-                color="#1f77b4",
-            )
-            ax.plot(
-                st.session_state.viscosity_history["pytorch"],
-                label="PyTorch",
-                linewidth=2,
-                color="#ff7f0e",
-            )
-            ax.set_xlabel("Epoch")
-            ax.set_ylabel("Inferred Viscosity")
-            ax.legend()
-            ax.grid(alpha=0.3)
-            st.pyplot(fig)
-            plt.close(fig)
 
 
 if __name__ == "__main__":

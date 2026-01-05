@@ -6,9 +6,10 @@
 [![PyTorch 2.9.1](https://img.shields.io/badge/PyTorch-2.9.1-orange)](https://pytorch.org/)
 [![Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-orange.svg)](LICENSE)
 
-This project demonstrates pipeline-level automatic differentiation across frameworks using Tesseract. An inverse Burgers equation solver (viscosity parameter inference via physics-informed neural networks) runs with either JAX or PyTorch PINN backends while maintaining identical optimization code. When the PyTorch backend is selected, JAX gradients are computed through the Tesseract VJP interface, enabling cross-framework automatic differentiation.
+**Overview**
+This project demonstrates pipeline-level automatic differentiation across frameworks using Tesseract. An inverse 1D Burgers equation solver (Inferring viscosity parameter via physics-informed neural networks) runs with either JAX or PyTorch PINN backends while maintaining identical optimization code. When the PyTorch backend is selected, JAX gradients are computed through the Tesseract VJP interface, enabling cross-framework automatic differentiation.
 
-**Key contributions:**
+**Key implementations:**
 - Implementation of `apply`, `vector_jacobian_product`, and `jacobian_vector_product` endpoints for both JAX and PyTorch PINNs
 - Demonstration of JAX optimizer computing gradients through PyTorch models via Tesseract's VJP endpoint
 - Backend-agnostic inverse problem pipeline with swappable implementations (Pytorch/Jax) 
@@ -50,8 +51,8 @@ where:
 - $\mathcal{L}_{\text{physics}}$: PDE residual at collocation points
 - $\mathcal{L}_{\text{IC}}$: initial condition violation
 - $\mathcal{L}_{\text{BC}}$: boundary condition violation
-- 
-Note: In this demo, synthetic data are generated from a heat‑equation approximation of Burgers for small viscosity, which remains smooth and does not exhibit shock formation. The focus is on inverse viscosity estimation and pipeline‑level autodiff, not on resolving nonlinear shock dynamics.
+
+> **Note:** <small> In this demo, synthetic data are generated from a heat‑equation approximation of Burgers for small viscosity, which remains smooth and does not exhibit shock formation. The focus is on inverse viscosity estimation and pipeline‑level autodiff, not on resolving nonlinear shock dynamics.
 ---
 
 ## Implementation
@@ -107,12 +108,12 @@ v_grad = grad_visc(viscosity, params, ...)
 p_grad = grad_params(viscosity, params, ...)
 ```
 
-**Key point:** The system-level gradients ($\partial \mathcal{L}/\partial \nu$ and $\partial \mathcal{L}/\partial \text{params}$) are computed through Tesseract's `vector_jacobian_product` endpoint for both backends. The backend selection only determines which autograd implementation Tesseract uses internally for its VJP computation.
+> **Key point:** The system-level gradients ($\partial \mathcal{L}/\partial \nu$ and $\partial \mathcal{L}/\partial \text{params}$) are computed through Tesseract's `vector_jacobian_product` endpoint for both backends. The backend selection only determines which autograd implementation Tesseract uses internally for its VJP computation.
 
 ### Project Structure
 
 ```
-tesseract-hackathon/
+tesseract-pinn-inverse-burgers/
 ├── inverse_problem.py         # CLI demo comparing JAX/PyTorch backends
 ├── app.py                     # Streamlit interactive interface
 ├── buildall.sh                # Builds Docker containers for both backends
@@ -130,7 +131,6 @@ tesseract-hackathon/
 
 ---
 
-docker images | grep pinn
 ## Installation
 
 **Requirements:** Python ≥3.10, Docker
@@ -182,6 +182,19 @@ The Streamlit app provides:
 - Solution comparison (PINN vs analytical)
 
 ---
+
+## Results
+PINN inferred viscosity converges close to ground truth \((\nu = 0.05)\) for both backends after 100 epochs:
+
+<table>
+  <tr>
+    <td align="center">
+      <img src="img/training_loss.png" alt="Training loss" width="420"/>
+      <div><em>Training loss vs epochs (both backends)</em></div>
+    </td>
+  </tr>
+</table>
+
 
 ## References
 

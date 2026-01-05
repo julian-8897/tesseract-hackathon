@@ -182,13 +182,12 @@ def run_inverse_problem(
     key = jax.random.PRNGKey(123)
     x_obs, t_obs, u_obs = generate_observations(n_obs, true_viscosity, domain, key)
     key_col, key_ic, key_bc = jax.random.split(key, 3)
-    n_col = 200  
+    n_col = 200
     x_col = jax.random.uniform(
         key_col, (n_col,), minval=domain["x"][0], maxval=domain["x"][1]
     )
     t_col = jax.random.uniform(key_col, (n_col,), minval=0.05, maxval=domain["t"][1])
 
-    
     n_ic = 50
     x_ic = jax.random.uniform(
         key_ic, (n_ic,), minval=domain["x"][0], maxval=domain["x"][1]
@@ -204,7 +203,7 @@ def run_inverse_problem(
     print(f"Model parameters: {params_flat.size}")
 
     viscosity = jnp.array(initial_viscosity)
-    
+
     visc_optimizer = optax.adam(learning_rate)
     visc_opt_state = visc_optimizer.init(viscosity)
 

@@ -189,8 +189,17 @@ PINN inferred viscosity converges close to ground truth \((\nu = 0.05)\) for bot
 <table>
   <tr>
     <td align="center">
-      <img src="img/training_loss.png" alt="Training loss" width="420"/>
-      <div><em>Training loss vs epochs (both backends)</em></div>
+      <img src="img/pinn_solution_comparison.png" alt="PINN solution comparison" width="420"/>
+      <div><em>PINN solution comparison (JAX vs PyTorch)</em></div>
+    </td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <td align="center">
+      <img src="img/pinn_solution_comparison.png" alt="PINN solution comparison" width="420"/>
+      <div><em>PINN solution comparison (JAX vs PyTorch)</em></div>
     </td>
   </tr>
 </table>

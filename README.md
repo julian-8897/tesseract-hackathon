@@ -133,19 +133,24 @@ tesseract-pinn-inverse-burgers/
 
 ## Installation
 
-**Requirements:** Python ≥3.10, Docker
+**Requirements:** Python ≥3.10, Docker. (Optionally: uv for its venv/pip shims)
 
 ```bash
 # Clone repository
 git clone https://github.com/julian-8897/tesseract-pinn-inverse-burgers.git
 cd tesseract-pinn-inverse-burgers
 
-# Create virtual environment using uv and activate
+# Option A — using uv (recommended if you use uv workflow)
+# Install uv if missing: pip install uv
 uv venv
 source .venv/bin/activate
-
-# Install dependencies via uv's pip shim
 uv pip install -e .
+
+# Option B — using standard Python venv (works everywhere)
+# Create & activate venv
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .
 
 # Build Tesseract containers (requires Docker running)
 ./buildall.sh

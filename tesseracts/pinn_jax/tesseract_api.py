@@ -60,7 +60,7 @@ class PINNNet(eqx.Module):
         """Initialize network with Fourier features for better convergence."""
         keys = jax.random.split(key, 4)
 
-        # Fourier feature matrices (helps with spectral bias)
+        # Fourier feature matrices
         self.B_x = jax.random.normal(keys[0], (n_fourier_features,)) * 2.0
         self.B_t = jax.random.normal(keys[1], (n_fourier_features,)) * 2.0
 
@@ -143,7 +143,7 @@ def apply_jit(inputs: dict) -> dict:
 
     u_pred = jax.vmap(u_fn)(x, t)
 
-    # partial derivatives via autodiff
+    # spatial/temporal partial derivatives via autodiff
     u_x = jax.vmap(jax.grad(u_fn, argnums=0))(x, t)
 
     u_t = jax.vmap(jax.grad(u_fn, argnums=1))(x, t)

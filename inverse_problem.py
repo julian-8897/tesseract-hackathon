@@ -165,7 +165,7 @@ def run_inverse_problem(
     learning_rate=0.001,
 ):
     """
-    Run inverse problem to infer viscosity.
+    Run inverse problem to infer viscosity parameter.
 
     Args:
         backend: "jax" or "pytorch" - which PINN tesseract to use
@@ -252,12 +252,11 @@ def run_inverse_problem(
                 pinn,
             )
 
-            # Update viscosity
+            # Both viscosity and parameters are updated
             visc_updates, visc_opt_state = visc_optimizer.update(v_grad, visc_opt_state)
             viscosity = optax.apply_updates(viscosity, visc_updates)
             viscosity = jnp.maximum(viscosity, 1e-6)  # Keep positive
 
-            # Update PINN params
             param_updates, param_opt_state = param_optimizer.update(
                 p_grad, param_opt_state
             )
@@ -310,7 +309,7 @@ def run_inverse_problem(
 
 
 def compare_backends(n_epochs=50, n_obs=80):
-    """Run inverse problem with both backends and compare."""
+    """Run inverse problem with both backends for comparison."""
 
     print("\n" + "=" * 70)
     print("  CROSS-FRAMEWORK AUTODIFF COMPARISON")
@@ -372,7 +371,7 @@ def compare_backends(n_epochs=50, n_obs=80):
 
 
 def run_single_backend(backend="jax", n_epochs=50):
-    """Run inverse problem with a single backend (for testing)."""
+    """Run inverse problem with a single backend only."""
     return run_inverse_problem(
         backend=backend,
         true_viscosity=0.05,

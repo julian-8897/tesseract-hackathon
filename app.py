@@ -487,8 +487,7 @@ def main():
         visc_history = [float(initial_viscosity)]
         loss_history = []
         time_history = []
-
-        # Training loop
+        
         with pinn:
             for epoch in range(n_epochs):
                 start_time = time.time()

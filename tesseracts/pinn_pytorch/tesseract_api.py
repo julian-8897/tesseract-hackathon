@@ -48,7 +48,7 @@ class OutputSchema(BaseModel):
 
 
 class PINNNet(nn.Module):
-    """Simple MLP for PINN with Fourier feature encoding - PyTorch version."""
+    """Simple MLP for PINN with Fourier feature encoding (PyTorch)."""
 
     def __init__(self, hidden_sizes=[64, 64, 64], n_fourier_features=32, seed=0):
         """Initialize network with Fourier features for better convergence."""
@@ -92,7 +92,7 @@ class PINNNet(nn.Module):
         h = features
         for layer in self.layers[:-1]:
             h = layer(h)
-            h = torch.tanh(h) 
+            h = torch.tanh(h)
 
         return self.layers[-1](h).squeeze(-1)
 
@@ -150,15 +150,12 @@ def apply(inputs: InputSchema) -> OutputSchema:
     model = unflatten_params(params_flat)
     model.eval()
 
-    # Convert to tensors with gradient tracking
     x_tensor = torch.tensor(x, dtype=torch.float32, requires_grad=True)
     t_tensor = torch.tensor(t, dtype=torch.float32, requires_grad=True)
 
-    # Forward pass
     u_pred = model(x_tensor, t_tensor)
 
-    # Compute derivatives via PyTorch autodiff
-    # u_x: ∂u/∂x
+    # Compute spatial/temporal derivatives via PyTorch autodiff
     u_x = torch.autograd.grad(
         outputs=u_pred,
         inputs=x_tensor,
@@ -167,7 +164,6 @@ def apply(inputs: InputSchema) -> OutputSchema:
         retain_graph=True,
     )[0]
 
-    # u_t: ∂u/∂t
     u_t = torch.autograd.grad(
         outputs=u_pred,
         inputs=t_tensor,
@@ -176,7 +172,6 @@ def apply(inputs: InputSchema) -> OutputSchema:
         retain_graph=True,
     )[0]
 
-    # u_xx: ∂²u/∂x²
     u_xx = torch.autograd.grad(
         outputs=u_x,
         inputs=x_tensor,

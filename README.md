@@ -184,12 +184,31 @@ The Streamlit app provides:
 ---
 
 ## Results
-PINN inferred viscosity converges close to ground truth \((\nu = 0.05)\) for both backends after 100 epochs:
+PINN inferred viscosity converges close to ground truth $(\nu = 0.05)$ for both backends after 100 epochs:
 <table align="center" cellpadding="12">
   <tr>
     <td align="center">
       <img src="img/pinn_solution_comparison.png" alt="PINN solution comparison" width="900"/>
       <div><em>PINN solution comparison (JAX vs PyTorch)</em></div>
+    </td>
+  </tr>
+</table>
+
+PINN $u(x,t)$ solutions vs analytical solution for both backends, green points indicate noisy observations:
+<table align="center" cellpadding="12">
+  <tr>
+    <td align="center">
+      <img src="img/pinn_field_solution_jax.png" alt="PINN solution comparison" width="900"/>
+      <div><em>PINN vs Analytical Solution (JAX)</em></div>
+    </td>
+  </tr>
+</table>
+
+<table align="center" cellpadding="12">
+  <tr>
+    <td align="center">
+      <img src="img/pinn_field_solution_pytorch.png" alt="PINN solution comparison" width="900"/>
+      <div><em></em>PINN vs Analytical Solution (PyTorch)</div>
     </td>
   </tr>
 </table>

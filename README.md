@@ -7,7 +7,7 @@
 [![Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-orange.svg)](LICENSE)
 
 **Overview**
-This project demonstrates pipeline-level automatic differentiation across frameworks using Tesseract. An inverse 1D Burgers equation solver (Inferring viscosity parameter via physics-informed neural networks) runs with either JAX or PyTorch PINN backends while maintaining identical optimization code. When the PyTorch backend is selected, JAX gradients are computed through the Tesseract VJP interface, enabling cross-framework automatic differentiation.
+This project demonstrates pipeline-level automatic differentiation across frameworks using Tesseract. An inverse 1D viscous Burgers equation solver (Inferring viscosity coefficient via physics-informed neural networks) runs with either JAX or PyTorch PINN backends while maintaining identical optimization code. When the PyTorch backend is selected, JAX gradients are computed through the Tesseract VJP interface, enabling cross-framework automatic differentiation.
 
 **Key implementations:**
 - Implementation of `apply`, `vector_jacobian_product`, and `jacobian_vector_product` endpoints for both JAX and PyTorch PINNs
@@ -22,6 +22,7 @@ This project demonstrates pipeline-level automatic differentiation across framew
 - [Implementation](#implementation)
 - [Installation](#installation)
 - [Usage](#usage)
+- [Results](#results)
 - [References](#references)
 
 ---
@@ -146,8 +147,7 @@ uv venv
 source .venv/bin/activate
 uv pip install -e .
 
-# Option B — using standard Python venv (works everywhere)
-# Create & activate venv
+# Option B (python venv)
 python -m venv .venv
 source .venv/bin/activate
 pip install -e .
